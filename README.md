@@ -1,6 +1,6 @@
 # INSIGHT temporal t-SNE
 
-This GitHub Pages viewer compares shared frame-level representations from four INSIGHT checkpoints and one Timewarp VAE action embedding.
+This GitHub Pages viewer compares shared frame-level representations from four INSIGHT checkpoints and two Timewarp VAE action embeddings.
 
 ## Fixed sampling contract
 
@@ -45,11 +45,14 @@ Changing the seed, task order, candidate sorting, or sampling one independently 
 
 ### Action (Timewarp VAE)
 
-- Run: `C8_01_C3_008 ... checkpoint-step-30000-epoch-39.11`
-- Source: `action.ee_abs_rot6d`
-- Per-point input: 16 future actions x 10 dimensions
-- Episode tail: repeat the final valid action until all 16 steps are filled
-- Feature: deterministic encoder `mu`, L2-normalized, shape `[6517, 16]`
+| Run | Checkpoint | Per-point action input | Latent |
+|---|---|---|---|
+| `[Abs_6D] C8_01_C3_008 30K` | `checkpoint-step-30000-epoch-39.11` | 16 future `ee_abs_rot6d` actions x 10D | 16D |
+| `[Abs_6D + Delta] b512/RD/K08_z16_g4_h256@20K` | `checkpoint-step-20000-epoch-46.84` | 16 future actions x 16D: `ee_abs_rot6d` 10D + `ee_delta` 6D | 16D |
+
+For K08, the duplicate `ee_delta` gripper dimension is removed and `ee_abs_rot6d` owns the gripper, exactly following the checkpoint action contract. Its 16D `train_stats.json` is bit-equivalent to `action_contract.train_stats` and is applied before encoding (count 218,367; canonical SHA-256 `89c7f97c6639ac236a69f54c51fb379549a5650062ae0a6a8d5eaf0e9d550ef3`).
+
+For both runs, the episode tail repeats the final valid action until all 16 steps are filled. The exported feature is deterministic encoder `mu`, L2-normalized, shape `[6517, 16]`.
 
 ## Feature definitions
 

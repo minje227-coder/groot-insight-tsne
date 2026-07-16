@@ -368,6 +368,88 @@
         "/home/ext_minje/groot_insight/TimewarpVAE_ckpt/TimewarpVAE_combo_top8_30k/C8_01_C3_008_beta_5em05_latent_dim_16_granularity_4_decoder_hidden_dim_512/checkpoint-step-30000-epoch-39.11/model_config.json",
         "/home/ext_minje/groot_insight/TimewarpVAE_ckpt/TimewarpVAE_combo_top8_30k/C8_01_C3_008_beta_5em05_latent_dim_16_granularity_4_decoder_hidden_dim_512/checkpoint-step-30000-epoch-39.11/action_contract.json"
       ]
+    },
+    "timewarp_vae_b512_rd_k08_z16_g4_h256_20k": {
+      "kind": "action_vae",
+      "facts": [
+        [
+          "Checkpoint",
+          "20K · Epoch 46.84"
+        ],
+        [
+          "Train batch",
+          "512"
+        ],
+        [
+          "Action input",
+          "16 steps × 16 dims"
+        ],
+        [
+          "Action views",
+          "EE Abs Rot6D 10D + EE Delta 6D"
+        ],
+        [
+          "Gripper",
+          "Deduplicated · Abs view owner"
+        ],
+        [
+          "Train stats",
+          "16D · n=218,367"
+        ],
+        [
+          "Stats SHA-256",
+          "89c7f97c6639…"
+        ],
+        [
+          "Embedding",
+          "μ · L2 normalized"
+        ],
+        [
+          "Latent",
+          "16D"
+        ],
+        [
+          "Granularity",
+          "4"
+        ],
+        [
+          "Decoder",
+          "Functional · h256 · basis 64"
+        ]
+      ],
+      "phases": [
+        {
+          "name": "Timewarp VAE training",
+          "range": "0–20K",
+          "badge": "VAE",
+          "enabled": null,
+          "rows": [
+            [
+              "Learning rate",
+              "1e-4"
+            ],
+            [
+              "LR warmup",
+              "500 steps"
+            ],
+            [
+              "Output",
+              "16D action embedding"
+            ],
+            [
+              "Sampling",
+              "Deterministic μ"
+            ]
+          ]
+        }
+      ],
+      "source_label": "config.yaml + model_config.json + action_contract.json + train_stats.json",
+      "sources": [
+        "/home/ext_minje/groot_insight/TimewarpVAE_ckpt/multispace_gripper_dedup_batch_ablation_v1/b512/RD/K08_z16_g4_h256/checkpoint-step-20000-epoch-46.84/config.yaml",
+        "/home/ext_minje/groot_insight/TimewarpVAE_ckpt/multispace_gripper_dedup_batch_ablation_v1/b512/RD/K08_z16_g4_h256/checkpoint-step-20000-epoch-46.84/model_config.json",
+        "/home/ext_minje/groot_insight/TimewarpVAE_ckpt/multispace_gripper_dedup_batch_ablation_v1/b512/RD/K08_z16_g4_h256/checkpoint-step-20000-epoch-46.84/action_contract.json",
+        "/home/ext_minje/groot_insight/TimewarpVAE_ckpt/multispace_gripper_dedup_batch_ablation_v1/b512/RD/K08_z16_g4_h256/checkpoint-step-20000-epoch-46.84/train_stats.json"
+      ]
     }
   }
 }

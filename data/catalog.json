@@ -49,8 +49,18 @@
     {
       "id": "timewarp_vae_c8_01_c3_008_30k",
       "family": "Action (Timewarp VAE)",
-      "label": "C8_01_C3_008 30K",
+      "label": "[Abs_6D] C8_01_C3_008 30K",
       "path": "runs/timewarp_vae_c8_01_c3_008_30k",
+      "manifest_id": "01fb32c51e",
+      "features": [
+        "action"
+      ]
+    },
+    {
+      "id": "timewarp_vae_b512_rd_k08_z16_g4_h256_20k",
+      "family": "Action (Timewarp VAE)",
+      "label": "[Abs_6D + Delta] b512/RD/K08_z16_g4_h256@20K",
+      "path": "runs/timewarp_vae_b512_rd_k08_z16_g4_h256_20k",
       "manifest_id": "01fb32c51e",
       "features": [
         "action"
