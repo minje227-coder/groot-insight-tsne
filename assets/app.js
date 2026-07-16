@@ -1,5 +1,7 @@
 const state = {
   catalog: null,
+  trainingProfiles: null,
+  openProfileCards: new Set(),
   family: "INSIGHT Ckpt",
   run: null,
   runManifest: null,
@@ -277,9 +279,18 @@ function resetRunState() {
 }
 
 async function loadCatalog() {
+  const pending = [];
   if (!state.catalog) {
-    state.catalog = await fetchJson("./data/catalog.json");
+    pending.push(fetchJson("./data/catalog.json").then((catalog) => {
+      state.catalog = catalog;
+    }));
   }
+  if (!state.trainingProfiles) {
+    pending.push(fetchJson("./data/training_profiles.json").then((payload) => {
+      state.trainingProfiles = payload.profiles || {};
+    }));
+  }
+  await Promise.all(pending);
 }
 
 const colors = [
@@ -662,6 +673,96 @@ function attachPanelResize() {
   });
 }
 
+function renderActiveModelDetails() {
+  const activeRunIds = [...new Set(state.selectedCharts.map((chart) => chart.runId))];
+  const activeSet = new Set(activeRunIds);
+  for (const runId of [...state.openProfileCards]) {
+    if (!activeSet.has(runId)) state.openProfileCards.delete(runId);
+  }
+
+  const cards = activeRunIds.flatMap((runId) => {
+    const run = getRunById(runId);
+    const profile = state.trainingProfiles?.[runId];
+    if (!run || !profile) return [];
+
+    const isOpen = state.openProfileCards.has(runId);
+    const features = state.selectedCharts
+      .filter((chart) => chart.runId === runId)
+      .map((chart) => chart.feature);
+
+    const header = el("button", {
+      class: "model-profile-toggle",
+      "aria-expanded": String(isOpen),
+      onclick: () => {
+        if (state.openProfileCards.has(runId)) state.openProfileCards.delete(runId);
+        else state.openProfileCards.add(runId);
+        renderSidebar();
+      },
+    }, [
+      el("span", { class: "model-profile-caret", text: isOpen ? "▾" : "▸" }),
+      el("span", { class: "model-profile-title", text: run.label || run.id }),
+      el("span", { class: "model-profile-features" }, features.map((feature) =>
+        el("span", { class: "model-profile-feature", text: feature })
+      )),
+    ]);
+
+    const facts = el("dl", { class: "model-profile-facts" },
+      (profile.facts || []).flatMap(([label, value]) => [
+        el("dt", { text: label }),
+        el("dd", { text: value }),
+      ])
+    );
+
+    const phases = el("div", { class: "phase-timeline" },
+      (profile.phases || []).map((phase, index) => {
+        const badgeClass = phase.enabled === true
+          ? " on"
+          : phase.enabled === false
+            ? " off"
+            : " neutral";
+        return el("article", { class: "phase-card" }, [
+          el("div", { class: "phase-head" }, [
+            el("span", { class: "phase-index", text: "P" + (index + 1) }),
+            el("div", { class: "phase-name-wrap" }, [
+              el("strong", { class: "phase-name", text: phase.name }),
+              el("span", { class: "phase-range", text: phase.range }),
+            ]),
+            el("span", { class: "phase-badge" + badgeClass, text: phase.badge }),
+          ]),
+          el("dl", { class: "phase-rows" },
+            (phase.rows || []).flatMap(([label, value]) => [
+              el("dt", { text: label }),
+              el("dd", { text: value }),
+            ])
+          ),
+        ]);
+      })
+    );
+
+    const source = el("p", {
+      class: "model-profile-source",
+      text: "Source: " + (profile.source_label || "checkpoint metadata"),
+      title: (profile.sources || []).join("\n"),
+    });
+
+    return [el("div", { class: "model-profile-card" + (isOpen ? " open" : "") }, [
+      header,
+      el("div", { class: "model-profile-body" + (isOpen ? " open" : "") }, [
+        facts,
+        el("h4", { class: "phase-heading", text: "Phase timeline" }),
+        phases,
+        source,
+      ]),
+    ])];
+  });
+
+  if (!cards.length) return null;
+  return el("section", { class: "active-model-details" }, [
+    el("h2", { text: "Active models" }),
+    el("div", { class: "model-profile-list" }, cards),
+  ]);
+}
+
 function renderSidebar() {
   const sidebar = document.querySelector(".sidebar");
   const families = [...(state.catalog.families || familyOrder)]
@@ -701,6 +802,8 @@ function renderSidebar() {
     el("p", { text: "Wheel: zoom" }),
     el("p", { text: "Wheel click + drag: pan" }),
   ]));
+  const modelDetails = renderActiveModelDetails();
+  if (modelDetails) sidebar.appendChild(modelDetails);
 }
 
 function renderEmpty() {

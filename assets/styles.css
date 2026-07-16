@@ -198,6 +198,209 @@ body.resizing-panel {
   margin: 4px 0;
 }
 
+.active-model-details {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 2px;
+}
+
+.active-model-details h2 {
+  margin-bottom: 8px;
+}
+
+.model-profile-list {
+  display: grid;
+  gap: 7px;
+}
+
+.model-profile-card {
+  border: 1px solid #cfd9e4;
+  border-radius: 8px;
+  background: #fbfdff;
+  overflow: hidden;
+}
+
+.model-profile-card.open {
+  border-color: #9fb4ca;
+  box-shadow: 0 2px 10px rgba(31, 59, 85, 0.08);
+}
+
+.model-profile-toggle {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  border: 0;
+  background: #eef4fa;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 8px;
+  text-align: left;
+}
+
+.model-profile-card.open .model-profile-toggle {
+  background: #e5eff9;
+}
+
+.model-profile-caret {
+  color: #536b81;
+  font-size: 11px;
+}
+
+.model-profile-title {
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.model-profile-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: flex-end;
+}
+
+.model-profile-feature {
+  border: 1px solid #a9bfd4;
+  border-radius: 999px;
+  background: #fff;
+  color: #31526f;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  text-transform: uppercase;
+}
+
+.model-profile-body {
+  display: none;
+  padding: 9px;
+}
+
+.model-profile-body.open {
+  display: block;
+}
+
+.model-profile-facts,
+.phase-rows {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+  gap: 4px 8px;
+  margin: 0;
+}
+
+.model-profile-facts {
+  border-bottom: 1px solid #e2e8ef;
+  padding-bottom: 8px;
+}
+
+.model-profile-facts dt,
+.phase-rows dt {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.model-profile-facts dd,
+.phase-rows dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.phase-heading {
+  color: #3d556b;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  margin: 9px 0 6px;
+  text-transform: uppercase;
+}
+
+.phase-timeline {
+  display: grid;
+  gap: 6px;
+  position: relative;
+}
+
+.phase-card {
+  border: 1px solid #d9e2ea;
+  border-radius: 7px;
+  background: #fff;
+  padding: 7px;
+}
+
+.phase-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.phase-index {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #dce9f5;
+  color: #294b67;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.phase-name-wrap {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.phase-name {
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.phase-range {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9px;
+}
+
+.phase-badge {
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 3px 5px;
+  white-space: nowrap;
+}
+
+.phase-badge.on {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.phase-badge.off {
+  background: #eef1f4;
+  color: #64717e;
+}
+
+.phase-badge.neutral {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.model-profile-source {
+  color: var(--muted);
+  cursor: help;
+  font-size: 9px;
+  line-height: 1.3;
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+
 .run-btn strong {
   display: block;
 }

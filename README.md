@@ -57,6 +57,12 @@ Changing the seed, task order, candidate sorting, or sampling one independently 
 - `processed`: attention-mask mean after `model.action_head.process_backbone_output(...)`.
 - `action`: frozen Timewarp VAE deterministic `mu`; this is intentionally a separate family, not a GR00T action-head feature.
 
+## Active model profiles
+
+The sidebar shows a collapsible model profile only while that run has an active grid. Baseline `raw` and `processed` share one profile card, with both active features listed; disabling the final grid removes the card. Newly activated cards start collapsed.
+
+The normalized profile payload is `data/training_profiles.json`. Its values are sourced from each checkpoint's `train_config.json` and `phase_schedule.json`, or from the Timewarp VAE `model_config.json` and `action_contract.json`. Policy cards keep LR warmup separate from the RKD phase range and show RKD ON/OFF, FM/RKD weights, decay schedule, distance-to-angle ratio, and trainable/frozen modules.
+
 ## t-SNE preprocessing
 
 For each feature independently: remove constant dimensions, z-score, PCA to at most 50 dimensions, then scikit-learn t-SNE with `perplexity=30`, `max_iter=1000`, and `random_state=42`.
