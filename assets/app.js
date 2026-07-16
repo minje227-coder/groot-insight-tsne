@@ -85,6 +85,11 @@ function buildSelection(runId, point, feature = null) {
   };
 }
 
+function logicalSelectionKey(selection) {
+  return selection?.selectionKey
+    || `${selection?.runId}::${selection?.seq}::${selection?.frame}`;
+}
+
 function selectionKey(selection) {
   if (!selection) return "";
   return `${selection.runId}::${selection.feature || ""}::${selection.seq}::${selection.anchor}::${selection.frame}`;
@@ -110,8 +115,8 @@ function isSelectionVisible(selection) {
 }
 
 function getSelectionIndex(selection) {
-  const key = selectionKey(selection);
-  return state.selectedPoints.findIndex((point) => selectionKey(point) === key);
+  const key = logicalSelectionKey(selection);
+  return state.selectedPoints.findIndex((point) => logicalSelectionKey(point) === key);
 }
 
 function getSelectionAccent(selection) {
@@ -486,7 +491,8 @@ function applyTemporalSpacing(points) {
 }
 
 function sequenceKey(seq) {
-  return `${seq.task_name}\u0000${seq.description}`;
+  const dataset = seq.dataset_rel_path || "";
+  return `${dataset}\u0000${seq.episode_index}`;
 }
 
 function getVisibleSequenceKeys() {
@@ -1401,8 +1407,8 @@ function selectPoint(runId, feature, point) {
   if (state.selectionMode === "single") {
     setSelectedPoints([nextSelection]);
   } else {
-    const key = selectionKey(nextSelection);
-    if (state.selectedPoints.some((selection) => selectionKey(selection) === key)) return;
+    const key = logicalSelectionKey(nextSelection);
+    if (state.selectedPoints.some((selection) => logicalSelectionKey(selection) === key)) return;
     setSelectedPoints([...state.selectedPoints.slice(-2), nextSelection]);
   }
   renderTabs();
@@ -1786,13 +1792,8 @@ function attachChartPan(svg, runId, feature) {
 }
 
 function isSelected(point) {
-  return state.selectedPoints.some((selection) =>
-    selection.runId === point.runId
-    && selection.feature === point.feature
-    && selection.seq === point.seq
-    && selection.anchor === point.anchor
-    && selection.frame === point.frame
-  );
+  const key = getPointSelectionKey(point.runId, point);
+  return Boolean(key && state.selectedPoints.some((selection) => logicalSelectionKey(selection) === key));
 }
 
 function getSelectedEpisodeKey() {
