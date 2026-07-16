@@ -24,6 +24,7 @@ const state = {
   lastHash: "",
   syncingVideos: false,
   videoMode: "chunk",
+  videoClockGeneration: 0,
   panelWidth: 360,
   panMode: false,
   lassoMode: false,
@@ -893,6 +894,7 @@ function ensureSelectedPoint(allowReplace = false) {
 }
 
 function renderTabs() {
+  state.videoClockGeneration += 1;
   const selectionControls = renderSelectionControls();
   const cameraControls = renderCameraControls();
   const colorControls = renderColorControls();
@@ -1314,7 +1316,9 @@ function renderVideoStrip(stage) {
         "data-start-frame": String(videoStartFrame),
         "data-fps": String(fps),
         "data-playback-mode": state.videoMode,
+        "data-chunk-steps": String(ACTION_CHUNK_STEPS),
         "data-chunk-start": String(requestedChunkStart),
+        "data-loop-duration": String(ACTION_CHUNK_STEPS / fps),
         src: `./${seq.videos[cam]}`,
         ...(state.selectionMode === "multi"
           ? { style: `border-color:${selectionAccent};box-shadow:0 0 0 1px ${selectionAccent};` }
@@ -1394,6 +1398,10 @@ function maybeStartSynchronizedVideos() {
   } finally {
     state.syncingVideos = false;
   }
+  if (state.videoMode === "chunk") {
+    startChunkPlaybackClock(videos);
+    return;
+  }
   requestAnimationFrame(() => {
     for (const video of videos) {
       const playPromise = video.play();
@@ -1402,31 +1410,58 @@ function maybeStartSynchronizedVideos() {
   });
 }
 
+function startChunkPlaybackClock(videos) {
+  const fps = numericValue(videos[0]?.dataset.fps) || 20;
+  const loopDuration = ACTION_CHUNK_STEPS / fps;
+  const generation = ++state.videoClockGeneration;
+  const startedAt = performance.now();
+
+  const tick = (now) => {
+    if (generation !== state.videoClockGeneration || state.videoMode !== "chunk") return;
+    if (videos.some((video) => !video.isConnected || video.dataset.ready !== "1")) return;
+    const relativeTime = ((now - startedAt) / 1000) % loopDuration;
+    state.syncingVideos = true;
+    try {
+      for (const video of videos) {
+        const start = getVideoPlaybackStart(video);
+        const validEnd = getVideoPlaybackEnd(video);
+        const lastValidTime = Math.max(start, validEnd - 0.025);
+        const withinValidFrames = start + relativeTime < validEnd - 0.015;
+        const targetTime = withinValidFrames ? start + relativeTime : lastValidTime;
+        if (Math.abs(video.currentTime - targetTime) > 0.065) {
+          video.currentTime = targetTime;
+        }
+        if (withinValidFrames && video.paused) {
+          const playPromise = video.play();
+          if (playPromise && typeof playPromise.catch === "function") playPromise.catch(() => {});
+        } else if (!withinValidFrames && !video.paused) {
+          video.pause();
+        }
+      }
+    } finally {
+      state.syncingVideos = false;
+    }
+    updateActionChunkCursor(clamp(relativeTime * fps, 0, ACTION_CHUNK_STEPS - 1));
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 function syncVideosFrom(source, options = {}) {
   if (state.syncingVideos || source.dataset.ready !== "1") return;
+  if (state.videoMode === "chunk") return;
   const videos = getSyncVideos().filter((video) => video.dataset.ready === "1");
   if (!videos.length) return;
   const { syncPlayback = false, forceTime = false } = options;
   const threshold = forceTime ? 0.001 : 0.05;
-  const sourceStart = getVideoPlaybackStart(source);
-  let relativeTime = Math.max(0, source.currentTime - sourceStart);
-
-  if (state.videoMode === "chunk") {
-    const loopDuration = Math.max(0.001, Math.min(...videos.map((video) =>
-      Math.max(0.001, getVideoPlaybackEnd(video) - getVideoPlaybackStart(video))
-    )));
-    if (relativeTime >= loopDuration - 0.015 || source.currentTime < sourceStart - threshold) {
-      relativeTime = 0;
-    }
-  }
+  const relativeTime = Math.max(0, source.currentTime);
 
   state.syncingVideos = true;
   try {
     for (const video of videos) {
-      const start = getVideoPlaybackStart(video);
       const end = getVideoPlaybackEnd(video);
-      const lastTime = Number.isFinite(end) ? Math.max(start, end - 0.025) : start + relativeTime;
-      const targetTime = Math.min(start + relativeTime, lastTime);
+      const lastTime = Number.isFinite(end) ? Math.max(0, end - 0.025) : relativeTime;
+      const targetTime = Math.min(relativeTime, lastTime);
       if (Math.abs(video.currentTime - targetTime) > threshold) {
         video.currentTime = targetTime;
       }
