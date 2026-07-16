@@ -861,7 +861,6 @@ function ensureSelectedPoint(allowReplace = false) {
 }
 
 function renderTabs() {
-  const selectionControls = renderSelectionControls();
   const cameraControls = renderCameraControls();
   const colorControls = renderColorControls();
   const zoomControls = el("div", { class: "zoom-controls" }, [
@@ -908,8 +907,7 @@ function renderTabs() {
     el("div", {
       class: "chart-controls-left",
     }, [
-      selectionControls,
-      ...(state.selectionMode === "multi" ? [cameraControls] : []),
+      cameraControls,
     ]),
     el("div", {
       class: "chart-controls-right",
@@ -1241,7 +1239,7 @@ function scaleSelectedCharts(factor) {
 }
 
 function renderVideoStrip(stage) {
-  const selections = state.selectedPoints;
+  const selections = state.selected ? [state.selected] : [];
   if (!selections.length) return;
   const cards = selections.flatMap((selection, index) => {
     const sequences = getSequencesForRun(selection.runId);
@@ -1250,9 +1248,7 @@ function renderVideoStrip(stage) {
     if (!seq || !seq.videos) return null;
     const cams = Object.keys(seq.videos);
     if (!cams.length) return null;
-    const shownCams = state.selectionMode === "single"
-      ? ["guide", "right_shoulder", "wrist"].filter((cam) => seq.videos[cam])
-      : [seq.videos[state.cam] ? state.cam : cams[0]];
+    const shownCams = [seq.videos[state.cam] ? state.cam : cams[0]];
     const fps = manifest.fps || 20;
     const videoStartFrame = numericValue(seq.video_start_frame) ?? 0;
     const currentTime = Math.max(0, (selection.frame - videoStartFrame) / fps);
@@ -1272,9 +1268,7 @@ function renderVideoStrip(stage) {
         "data-start-frame": String(videoStartFrame),
         "data-fps": String(fps),
         src: `./${seq.videos[cam]}`,
-        ...(state.selectionMode === "multi"
-          ? { style: `border-color:${selectionAccent};box-shadow:0 0 0 1px ${selectionAccent};` }
-          : {}),
+        style: `border-color:${selectionAccent};box-shadow:0 0 0 1px ${selectionAccent};`,
       });
       video.addEventListener("loadedmetadata", () => {
         const maxTime = Number.isFinite(video.duration) ? Math.max(0, video.duration - 0.05) : currentTime;
@@ -1372,13 +1366,7 @@ function renderCharts() {
 
 function selectPoint(runId, point) {
   const nextSelection = buildSelection(runId, point);
-  if (state.selectionMode === "single") {
-    setSelectedPoints([nextSelection]);
-  } else {
-    const key = selectionKey(nextSelection);
-    if (state.selectedPoints.some((selection) => selectionKey(selection) === key)) return;
-    setSelectedPoints([...state.selectedPoints.slice(-2), nextSelection]);
-  }
+  setSelectedPoints([nextSelection]);
   renderTabs();
   renderCharts();
   renderPanel();
@@ -1760,14 +1748,11 @@ function attachChartPan(svg, runId, feature) {
 }
 
 function isSelected(point) {
-  const selectionKey = getPointSelectionKey(point.runId, point);
-  return state.selectedPoints.some((selection) => {
-    if (selection.selectionKey && selectionKey) return selection.selectionKey === selectionKey;
-    return selection.runId === point.runId
-      && selection.seq === point.seq
-      && selection.anchor === point.anchor
-      && selection.frame === point.frame;
-  });
+  const selection = state.selected;
+  return Boolean(selection
+    && selection.runId === point.runId
+    && selection.seq === point.seq
+    && selection.frame === point.frame);
 }
 
 function getSelectedEpisodeKey() {
@@ -1848,10 +1833,7 @@ function syncSelectionToVideo(video) {
   const point = nearestPointForFrame(selection.seq, frame);
   if (!point || isSelected(point)) return;
   const nextSelection = buildSelection(point.runId || selection.runId, point);
-  const nextPoints = [...state.selectedPoints];
-  if (selectionIndex >= 0) nextPoints[selectionIndex] = nextSelection;
-  else nextPoints.push(nextSelection);
-  setSelectedPoints(nextPoints);
+  setSelectedPoints([nextSelection]);
   updateSelectedMarker();
   updateSelectionFrame();
 }
