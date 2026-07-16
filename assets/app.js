@@ -71,9 +71,10 @@ function getPointGlobalKey(runId, point) {
   return `${point.seq}::${frame}`;
 }
 
-function buildSelection(runId, point) {
+function buildSelection(runId, point, feature = null) {
   return {
     runId,
+    feature: feature || point.feature || null,
     seq: point.seq,
     anchor: point.anchor,
     frame: point.frame,
@@ -828,7 +829,9 @@ function renderViewer() {
 }
 
 function ensureSelectedPoint(allowReplace = false) {
-  const selectedRunIsShown = state.selectedCharts.some((chart) => chart.runId === state.selected?.runId);
+  const selectedRunIsShown = state.selectedCharts.some((chart) =>
+    chart.runId === state.selected?.runId && chart.feature === state.selected?.feature
+  );
   const selectedSeq = state.selected ? getSequenceById(state.selected.runId, state.selected.seq) : null;
   if (
     state.selected
@@ -857,7 +860,7 @@ function ensureSelectedPoint(allowReplace = false) {
     anchor: first[3],
     frame: first[4],
     progress: first[5],
-  })]);
+  }, chart.feature)]);
 }
 
 function renderTabs() {
@@ -1364,8 +1367,8 @@ function renderCharts() {
   }
 }
 
-function selectPoint(runId, point) {
-  const nextSelection = buildSelection(runId, point);
+function selectPoint(runId, feature, point) {
+  const nextSelection = buildSelection(runId, point, feature);
   setSelectedPoints([nextSelection]);
   renderTabs();
   renderCharts();
@@ -1490,7 +1493,7 @@ function renderChart(runId, feature) {
     });
   }
   for (const point of visiblePoints) {
-    const chartPoint = { ...point, runId };
+    const chartPoint = { ...point, runId, feature };
     const seq = sequences.sequences[point.seq];
     const seqSelectionKey = getEpisodeSelectionKey(runId, point.seq);
     const pointColor = getPointColor(point, seq);
@@ -1508,20 +1511,20 @@ function renderChart(runId, feature) {
     c.addEventListener("mouseenter", () => setHoveredEpisode(runId, point.seq));
     c.addEventListener("mouseleave", () => setHoveredEpisode(null, null));
     c.addEventListener("click", () => {
-      selectPoint(runId, point);
+      selectPoint(runId, feature, point);
     });
     c.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "title"))
       .textContent = `${seq.task_name}\n${seq.description}\nframe ${point.frame}`;
     svg.appendChild(c);
   }
   for (const point of visiblePoints) {
-    const chartPoint = { ...point, runId };
+    const chartPoint = { ...point, runId, feature };
     if (!isSelected(chartPoint)) continue;
     const seq = sequences.sequences[point.seq];
     const seqSelectionKey = getEpisodeSelectionKey(runId, point.seq);
     const pointColor = getPointColor(point, seq);
     const selectedCenterColor = complementColor(getTaskColor(seq));
-    const selectedAccent = getSelectionAccent(buildSelection(runId, point));
+    const selectedAccent = getSelectionAccent(buildSelection(runId, point, feature));
     const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     ring.setAttribute("cx", point.x);
     ring.setAttribute("cy", point.y);
@@ -1538,7 +1541,7 @@ function renderChart(runId, feature) {
     ring.addEventListener("mouseenter", () => setHoveredEpisode(runId, point.seq));
     ring.addEventListener("mouseleave", () => setHoveredEpisode(null, null));
     ring.addEventListener("click", () => {
-      selectPoint(runId, point);
+      selectPoint(runId, feature, point);
     });
     svg.appendChild(ring);
 
@@ -1557,7 +1560,7 @@ function renderChart(runId, feature) {
     center.addEventListener("mouseenter", () => setHoveredEpisode(runId, point.seq));
     center.addEventListener("mouseleave", () => setHoveredEpisode(null, null));
     center.addEventListener("click", () => {
-      selectPoint(runId, point);
+      selectPoint(runId, feature, point);
     });
     svg.appendChild(center);
   }
@@ -1751,6 +1754,7 @@ function isSelected(point) {
   const selection = state.selected;
   return Boolean(selection
     && selection.runId === point.runId
+    && selection.feature === point.feature
     && selection.seq === point.seq
     && selection.frame === point.frame);
 }
@@ -1796,13 +1800,14 @@ function getSequencePathD(seqPoints) {
 }
 
 function getCurrentFeaturePoints() {
-  const chart = state.selectedCharts.find((item) => item.runId === state.selected?.runId)
-    || state.selectedCharts[0];
+  const chart = state.selectedCharts.find((item) =>
+    item.runId === state.selected?.runId && item.feature === state.selected?.feature
+  ) || state.selectedCharts[0];
   if (!chart) return [];
   const pointPayload = state.pointsByChart.get(chartKey(chart.runId, chart.feature));
   if (!pointPayload) return [];
   return pointPayload.points.map((row) => ({
-    x: row[0], y: row[1], seq: row[2], anchor: row[3], frame: row[4], progress: row[5], runId: chart.runId,
+    x: row[0], y: row[1], seq: row[2], anchor: row[3], frame: row[4], progress: row[5], runId: chart.runId, feature: chart.feature,
   }));
 }
 
@@ -1832,7 +1837,7 @@ function syncSelectionToVideo(video) {
   const frame = Math.round(video.currentTime * fps) + videoStartFrame;
   const point = nearestPointForFrame(selection.seq, frame);
   if (!point || isSelected(point)) return;
-  const nextSelection = buildSelection(point.runId || selection.runId, point);
+  const nextSelection = buildSelection(point.runId || selection.runId, point, point.feature || selection.feature);
   setSelectedPoints([nextSelection]);
   updateSelectedMarker();
   updateSelectionFrame();
@@ -1915,10 +1920,7 @@ function renderPanel() {
   panel.appendChild(el("div", { class: "info" }, [
     definitionList([
       ["Run", selectedRun?.label || state.selected.runId],
-      ["Feature", state.selectedCharts
-        .filter((chart) => chart.runId === state.selected.runId)
-        .map((chart) => chart.feature)
-        .join(", ")],
+      ["Feature", state.selected.feature || ""],
       ["Task", seq.task_name],
       ["Description", seq.description],
       ["Episode", String(seq.episode_index)],
