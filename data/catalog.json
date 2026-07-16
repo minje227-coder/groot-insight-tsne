@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "families": [
+    "INSIGHT Ckpt",
+    "Action (Timewarp VAE)"
+  ],
+  "runs": [
+    {
+      "id": "baseline_060000",
+      "family": "INSIGHT Ckpt",
+      "label": "Baseline 60K",
+      "path": "runs/baseline_060000",
+      "manifest_id": "01fb32c51e",
+      "features": [
+        "raw",
+        "processed"
+      ]
+    },
+    {
+      "id": "lapstyle_linear_6k_060000",
+      "family": "INSIGHT Ckpt",
+      "label": "LAPstyle Linear 6K 60K",
+      "path": "runs/lapstyle_linear_6k_060000",
+      "manifest_id": "01fb32c51e",
+      "features": [
+        "processed"
+      ]
+    },
+    {
+      "id": "lapstyle_linear_10k_060000",
+      "family": "INSIGHT Ckpt",
+      "label": "LAPstyle Linear 10K 60K",
+      "path": "runs/lapstyle_linear_10k_060000",
+      "manifest_id": "01fb32c51e",
+      "features": [
+        "processed"
+      ]
+    },
+    {
+      "id": "rsclstyle_cosine_060000",
+      "family": "INSIGHT Ckpt",
+      "label": "RSCLstyle Cosine 60K",
+      "path": "runs/rsclstyle_cosine_060000",
+      "manifest_id": "01fb32c51e",
+      "features": [
+        "processed"
+      ]
+    },
+    {
+      "id": "timewarp_vae_c8_01_c3_008_30k",
+      "family": "Action (Timewarp VAE)",
+      "label": "C8_01_C3_008 30K",
+      "path": "runs/timewarp_vae_c8_01_c3_008_30k",
+      "manifest_id": "01fb32c51e",
+      "features": [
+        "action"
+      ]
+    }
+  ]
+}

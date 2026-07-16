@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "id": "baseline_060000",
+  "label": "Baseline 60K",
+  "family": "INSIGHT Ckpt",
+  "manifest_id": "01fb32c51e",
+  "features": [
+    "raw",
+    "processed"
+  ],
+  "points_files": {
+    "raw": "points_raw.json",
+    "processed": "points_processed.json"
+  },
+  "sequences_file": "../../data/sequences.json",
+  "fps": 10,
+  "source": {
+    "checkpoint": "/home/ext_minje/groot_insight/train_ckpt/Abs_6D/Baseline/checkpoints/060000/pretrained_model"
+  }
+}
