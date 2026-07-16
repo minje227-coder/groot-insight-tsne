@@ -1332,7 +1332,7 @@ function renderVideoStrip(stage) {
         video.dataset.chunkStart = String(chunkStart);
         video.dataset.chunkEnd = String(Math.max(chunkStart, chunkEnd));
         video.dataset.ready = "1";
-        video.currentTime = state.videoMode === "episode" ? 0 : chunkStart;
+        video.currentTime = chunkStart;
         updateActionChunkCursorFromVideo(video);
         maybeStartSynchronizedVideos();
       });
@@ -1355,14 +1355,14 @@ function renderVideoStrip(stage) {
     class: "mini-btn video-playback-btn",
     text: state.videoMode === "chunk" ? "Play episode" : "Loop 16 steps",
     title: state.videoMode === "chunk"
-      ? "Play every selected episode from its start"
+      ? "Play every selected episode from its selected point"
       : "Return to the selected 16-step action chunks",
     onclick: () => setVideoPlaybackMode(state.videoMode === "chunk" ? "episode" : "chunk"),
   });
   stage.appendChild(el("div", { class: "video-playback-toolbar" }, [
     el("span", {
       class: "video-playback-status",
-      text: state.videoMode === "chunk" ? "Selected action chunk: 16-step loop" : "Full episode playback",
+      text: state.videoMode === "chunk" ? "Selected action chunk: 16-step loop" : "Episode playback from selected points",
     }),
     playbackButton,
   ]));
@@ -1374,7 +1374,7 @@ function getSyncVideos() {
 }
 
 function getVideoPlaybackStart(video) {
-  return state.videoMode === "episode" ? 0 : (numericValue(video.dataset.chunkStart) ?? 0);
+  return numericValue(video.dataset.chunkStart) ?? 0;
 }
 
 function getVideoPlaybackEnd(video) {
@@ -1454,14 +1454,16 @@ function syncVideosFrom(source, options = {}) {
   if (!videos.length) return;
   const { syncPlayback = false, forceTime = false } = options;
   const threshold = forceTime ? 0.001 : 0.05;
-  const relativeTime = Math.max(0, source.currentTime);
+  const sourceStart = getVideoPlaybackStart(source);
+  const relativeTime = Math.max(0, source.currentTime - sourceStart);
 
   state.syncingVideos = true;
   try {
     for (const video of videos) {
       const end = getVideoPlaybackEnd(video);
-      const lastTime = Number.isFinite(end) ? Math.max(0, end - 0.025) : relativeTime;
-      const targetTime = Math.min(relativeTime, lastTime);
+      const start = getVideoPlaybackStart(video);
+      const lastTime = Number.isFinite(end) ? Math.max(start, end - 0.025) : start + relativeTime;
+      const targetTime = Math.min(start + relativeTime, lastTime);
       if (Math.abs(video.currentTime - targetTime) > threshold) {
         video.currentTime = targetTime;
       }
