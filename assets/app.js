@@ -20,6 +20,7 @@ const state = {
   selected: null,
   visibleSeqs: new Set(),
   openTasks: new Set(),
+  openTaskGroups: new Set(["Drawer", "Door", "Bottle"]),
   lastHash: "",
   syncingVideos: false,
   panelWidth: 360,
@@ -182,6 +183,27 @@ function toggleActionDim(dim, dimCount) {
 
 const familyOrder = ["INSIGHT Ckpt", "Action (Timewarp VAE)"];
 const featureOrder = ["raw", "processed", "action"];
+
+const insightTaskGroups = ["Drawer", "Door", "Bottle"];
+const insightTaskMeta = {
+  "1ext": { group: "Drawer", label: "[1ext] Arrow-guided Open" },
+  "3a": { group: "Door", label: "[3a] CW, Push" },
+  "3b": { group: "Door", label: "[3b] CCW, Push" },
+  "3c": { group: "Door", label: "[3c] CW, Pull" },
+  "3d": { group: "Door", label: "[3d] CCW, Pull" },
+  "5a": { group: "Bottle", label: "[5a] Squeeze CCW Open" },
+  "5b": { group: "Bottle", label: "[5b] CCW Open" },
+  "5c": { group: "Bottle", label: "[5c] CW Open" },
+  "5d": { group: "Bottle", label: "[5d] CW Close" },
+  "5e": { group: "Bottle", label: "[5e] CCW Close" },
+  "5f": { group: "Bottle", label: "[5f] CW Close" },
+  "5g": { group: "Bottle", label: "[5g] Squeeze CW Open" },
+  "5h": { group: "Bottle", label: "[5h] CCW Close" },
+};
+
+function getInsightTaskMeta(taskName) {
+  return insightTaskMeta[taskName] || { group: "Other", label: taskName };
+}
 
 function orderIndex(list, value) {
   const index = list.indexOf(value);
@@ -2110,9 +2132,11 @@ function svgText(x, y, text, className) {
 
 function renderTaskDescriptionPanel(panel) {
   const sequences = state.sequences ? state.sequences.sequences : [];
-  const isFrameVersion = true;
-  const byTask = new Map();
+  const byGroup = new Map();
   for (const seq of sequences) {
+    const meta = getInsightTaskMeta(seq.task_name);
+    if (!byGroup.has(meta.group)) byGroup.set(meta.group, new Map());
+    const byTask = byGroup.get(meta.group);
     if (!byTask.has(seq.task_name)) byTask.set(seq.task_name, []);
     byTask.get(seq.task_name).push(seq);
   }
@@ -2140,41 +2164,45 @@ function renderTaskDescriptionPanel(panel) {
     },
   });
 
-  panel.appendChild(el("h2", { text: "Task / Description" }));
+  panel.appendChild(el("h2", { text: "Task / Episode" }));
   panel.appendChild(el("div", { class: "task-toolbar" }, [allOn, allOff]));
 
   const taskPanel = el("div", { class: "task-panel" });
-  for (const [taskName, taskSeqs] of [...byTask.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    taskSeqs.sort((a, b) =>
-      a.description.localeCompare(b.description)
-      || a.episode_index - b.episode_index
-      || a.seq_id - b.seq_id
-    );
-    const visibleCount = taskSeqs.filter((seq) => state.visibleSeqs.has(seq.seq_id)).length;
-    const isOpen = state.openTasks.has(taskName);
-    const taskButton = el("button", {
-      class: `task-name${visibleCount ? " active" : " inactive"}`,
+  const groupNames = [...byGroup.keys()].sort((a, b) => {
+    const ai = insightTaskGroups.indexOf(a);
+    const bi = insightTaskGroups.indexOf(b);
+    return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a.localeCompare(b);
+  });
+
+  for (const groupName of groupNames) {
+    const byTask = byGroup.get(groupName);
+    const groupSeqs = [...byTask.values()].flat();
+    const groupVisibleCount = groupSeqs.filter((seq) => state.visibleSeqs.has(seq.seq_id)).length;
+    const isGroupOpen = state.openTaskGroups.has(groupName);
+    const groupButton = el("button", {
+      class: `task-group-name${groupVisibleCount ? " active" : " inactive"}`,
       onmousedown: (event) => event.preventDefault(),
       onclick: () => {
         preserveTaskPanelScroll();
-        if (state.openTasks.has(taskName)) state.openTasks.delete(taskName);
-        else state.openTasks.add(taskName);
+        if (state.openTaskGroups.has(groupName)) state.openTaskGroups.delete(groupName);
+        else state.openTaskGroups.add(groupName);
         renderPanel();
       },
     }, [
-      el("span", { class: "task-caret", text: isOpen ? "-" : "+" }),
-      el("span", { text: taskName }),
-      el("span", { class: "task-count", text: `${visibleCount}/${taskSeqs.length}` }),
+      el("span", { class: "task-caret", text: isGroupOpen ? "-" : "+" }),
+      el("span", { text: groupName }),
+      el("span", { class: "task-count", text: `${groupVisibleCount}/${groupSeqs.length}` }),
     ]);
-    const toggleButton = el("button", {
+    const groupToggle = el("button", {
       class: "task-eye",
       text: "toggle",
+      title: `Toggle all ${groupName} episodes`,
       onmousedown: (event) => event.preventDefault(),
       onclick: (event) => {
         event.stopPropagation();
         preserveTaskPanelScroll();
-        const nextOn = visibleCount !== taskSeqs.length;
-        for (const seq of taskSeqs) {
+        const nextOn = groupVisibleCount !== groupSeqs.length;
+        for (const seq of groupSeqs) {
           if (nextOn) state.visibleSeqs.add(seq.seq_id);
           else state.visibleSeqs.delete(seq.seq_id);
         }
@@ -2182,23 +2210,43 @@ function renderTaskDescriptionPanel(panel) {
         renderViewer();
       },
     });
-    const descList = el("div", { class: `desc-list${isOpen ? " open" : ""}` });
-    const byDescription = new Map();
-    for (const seq of taskSeqs) {
-      if (!byDescription.has(seq.description)) byDescription.set(seq.description, []);
-      byDescription.get(seq.description).push(seq);
-    }
-    for (const [description, descSeqs] of byDescription) {
-      const descVisibleCount = descSeqs.filter((seq) => state.visibleSeqs.has(seq.seq_id)).length;
-      const descButton = el("button", {
-        class: `desc-toggle${descVisibleCount ? " active" : " inactive"}${descVisibleCount && descVisibleCount < descSeqs.length ? " partial" : ""}`,
-        text: description,
-        title: `${isFrameVersion && descVisibleCount === descSeqs.length ? "Hide" : "Show"} all ${descSeqs.length} matching description episode${descSeqs.length === 1 ? "" : "s"}`,
+
+    const taskList = el("div", { class: `task-group-list${isGroupOpen ? " open" : ""}` });
+    const taskEntries = [...byTask.entries()].sort((a, b) => {
+      const ai = Object.keys(insightTaskMeta).indexOf(a[0]);
+      const bi = Object.keys(insightTaskMeta).indexOf(b[0]);
+      return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a[0].localeCompare(b[0]);
+    });
+
+    for (const [taskName, taskSeqs] of taskEntries) {
+      taskSeqs.sort((a, b) => a.episode_index - b.episode_index || a.seq_id - b.seq_id);
+      const taskMeta = getInsightTaskMeta(taskName);
+      const visibleCount = taskSeqs.filter((seq) => state.visibleSeqs.has(seq.seq_id)).length;
+      const isOpen = state.openTasks.has(taskName);
+      const taskButton = el("button", {
+        class: `task-name${visibleCount ? " active" : " inactive"}`,
         onmousedown: (event) => event.preventDefault(),
         onclick: () => {
           preserveTaskPanelScroll();
-          const nextOn = !isFrameVersion || descVisibleCount !== descSeqs.length;
-          for (const seq of descSeqs) {
+          if (state.openTasks.has(taskName)) state.openTasks.delete(taskName);
+          else state.openTasks.add(taskName);
+          renderPanel();
+        },
+      }, [
+        el("span", { class: "task-caret", text: isOpen ? "-" : "+" }),
+        el("span", { text: taskMeta.label }),
+        el("span", { class: "task-count", text: `${visibleCount}/${taskSeqs.length}` }),
+      ]);
+      const taskToggle = el("button", {
+        class: "task-eye",
+        text: "toggle",
+        title: `Toggle all ${taskMeta.label} episodes`,
+        onmousedown: (event) => event.preventDefault(),
+        onclick: (event) => {
+          event.stopPropagation();
+          preserveTaskPanelScroll();
+          const nextOn = visibleCount !== taskSeqs.length;
+          for (const seq of taskSeqs) {
             if (nextOn) state.visibleSeqs.add(seq.seq_id);
             else state.visibleSeqs.delete(seq.seq_id);
           }
@@ -2206,12 +2254,32 @@ function renderTaskDescriptionPanel(panel) {
           renderViewer();
         },
       });
-      const episodeButtons = descSeqs.map((seq, index) => {
+
+      const details = el("div", { class: `desc-list${isOpen ? " open" : ""}` });
+      const description = taskSeqs[0]?.description || "";
+      const descriptionButton = el("button", {
+        class: `desc-toggle${visibleCount ? " active" : " inactive"}${visibleCount && visibleCount < taskSeqs.length ? " partial" : ""}`,
+        text: description,
+        title: `Toggle all ${taskSeqs.length} episodes`,
+        onmousedown: (event) => event.preventDefault(),
+        onclick: () => {
+          preserveTaskPanelScroll();
+          const nextOn = visibleCount !== taskSeqs.length;
+          for (const seq of taskSeqs) {
+            if (nextOn) state.visibleSeqs.add(seq.seq_id);
+            else state.visibleSeqs.delete(seq.seq_id);
+          }
+          ensureSelectedPoint(true);
+          renderViewer();
+        },
+      });
+      const episodeButtons = taskSeqs.map((seq, index) => {
         const visible = state.visibleSeqs.has(seq.seq_id);
         return el("button", {
           class: `desc-episode-toggle${visible ? " active" : " inactive"}`,
           text: String(index + 1),
-          title: `Episode ${seq.episode_index}`,
+          title: `Episode ${index + 1} (dataset episode ${seq.episode_index})`,
+          "aria-label": `${taskMeta.label}, episode ${index + 1}, ${visible ? "on" : "off"}`,
           onmousedown: (event) => event.preventDefault(),
           onclick: (event) => {
             event.stopPropagation();
@@ -2223,13 +2291,20 @@ function renderTaskDescriptionPanel(panel) {
           },
         });
       });
-      const descChildren = [descButton];
-      if (!isFrameVersion) descChildren.push(el("div", { class: "desc-episodes" }, episodeButtons));
-      descList.appendChild(el("div", { class: "desc-group" }, descChildren));
+      details.appendChild(el("div", { class: "desc-group" }, [
+        descriptionButton,
+        el("div", { class: "episode-filter-label", text: "Episodes" }),
+        el("div", { class: "desc-episodes" }, episodeButtons),
+      ]));
+      taskList.appendChild(el("div", { class: "task-accordion" }, [
+        el("div", { class: "task-row" }, [taskButton, taskToggle]),
+        details,
+      ]));
     }
-    taskPanel.appendChild(el("div", { class: "task-accordion" }, [
-      el("div", { class: "task-row" }, [taskButton, toggleButton]),
-      descList,
+
+    taskPanel.appendChild(el("div", { class: "task-group" }, [
+      el("div", { class: "task-group-row" }, [groupButton, groupToggle]),
+      taskList,
     ]));
   }
   panel.appendChild(taskPanel);

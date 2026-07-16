@@ -913,15 +913,55 @@ svg {
   padding-right: 2px;
 }
 
-.task-accordion {
-  border-bottom: 1px solid #e9edf2;
-  padding: 3px 0;
+.task-group {
+  border-bottom: 1px solid #dfe7f0;
+  padding: 4px 0;
 }
 
+.task-group-row,
 .task-row {
   display: flex;
   gap: 4px;
   align-items: center;
+}
+
+.task-group-name {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+  border: 0;
+  border-radius: 6px;
+  background: #e7eef7;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px;
+  text-align: left;
+}
+
+.task-group-name.inactive {
+  color: #8a96a3;
+  background: #f8fafc;
+}
+
+.task-group-list {
+  display: none;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 0 3px 12px;
+}
+
+.task-group-list.open {
+  display: flex;
+}
+
+.task-accordion {
+  border-bottom: 1px solid #eef2f6;
+  padding: 3px 0;
 }
 
 .task-name {
@@ -1005,9 +1045,17 @@ svg {
   background: #f2f7fc;
 }
 
+.episode-filter-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .desc-episodes {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(10, 22px);
   gap: 4px;
   padding-left: 2px;
 }
