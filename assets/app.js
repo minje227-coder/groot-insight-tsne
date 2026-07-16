@@ -23,6 +23,7 @@ const state = {
   openTaskGroups: new Set(["Drawer", "Door", "Bottle"]),
   lastHash: "",
   syncingVideos: false,
+  videoMode: "chunk",
   panelWidth: 360,
   panMode: false,
   lassoMode: false,
@@ -1022,6 +1023,7 @@ function renderSelectionControls() {
 function setSelectionMode(mode) {
   if (state.selectionMode === mode) return;
   state.selectionMode = mode;
+  state.videoMode = "chunk";
   if (mode === "single" && state.selectedPoints.length > 1) {
     setSelectedPoints([state.selectedPoints[state.selectedPoints.length - 1]]);
   }
@@ -1271,6 +1273,16 @@ function scaleSelectedCharts(factor) {
   if (readout) readout.textContent = getZoomReadout();
 }
 
+const ACTION_CHUNK_STEPS = 16;
+
+function setVideoPlaybackMode(mode) {
+  if (!['chunk', 'episode'].includes(mode)) return;
+  state.videoMode = mode;
+  renderTabs();
+  renderCharts();
+  renderPanel();
+}
+
 function renderVideoStrip(stage) {
   const selections = state.selectedPoints;
   if (!selections.length) return;
@@ -1286,14 +1298,12 @@ function renderVideoStrip(stage) {
       : [seq.videos[state.cam] ? state.cam : cams[0]];
     const fps = manifest.fps || 20;
     const videoStartFrame = numericValue(seq.video_start_frame) ?? 0;
-    const currentTime = Math.max(0, (selection.frame - videoStartFrame) / fps);
+    const requestedChunkStart = Math.max(0, (selection.frame - videoStartFrame) / fps);
     const selectedRun = getRunById(selection.runId);
     const selectionAccent = getSelectionAccent(selection);
     return shownCams.map((cam) => {
       const video = el("video", {
-        autoplay: "autoplay",
         controls: "controls",
-        loop: "loop",
         muted: "muted",
         playsinline: "playsinline",
         "data-sync-video": "1",
@@ -1303,17 +1313,24 @@ function renderVideoStrip(stage) {
         "data-selection-index": String(index),
         "data-start-frame": String(videoStartFrame),
         "data-fps": String(fps),
+        "data-playback-mode": state.videoMode,
+        "data-chunk-start": String(requestedChunkStart),
         src: `./${seq.videos[cam]}`,
         ...(state.selectionMode === "multi"
           ? { style: `border-color:${selectionAccent};box-shadow:0 0 0 1px ${selectionAccent};` }
           : {}),
       });
       video.addEventListener("loadedmetadata", () => {
-        const maxTime = Number.isFinite(video.duration) ? Math.max(0, video.duration - 0.05) : currentTime;
-        video.currentTime = Math.min(currentTime, maxTime);
+        const duration = Number.isFinite(video.duration) ? video.duration : requestedChunkStart + ACTION_CHUNK_STEPS / fps;
+        const lastSeekableTime = Math.max(0, duration - 0.04);
+        const chunkStart = Math.min(requestedChunkStart, lastSeekableTime);
+        const chunkEnd = Math.min(duration, chunkStart + ACTION_CHUNK_STEPS / fps);
+        video.dataset.chunkStart = String(chunkStart);
+        video.dataset.chunkEnd = String(Math.max(chunkStart, chunkEnd));
+        video.dataset.ready = "1";
+        video.currentTime = state.videoMode === "episode" ? 0 : chunkStart;
         updateActionChunkCursorFromVideo(video);
-        const playPromise = video.play();
-        if (playPromise && typeof playPromise.catch === "function") playPromise.catch(() => {});
+        maybeStartSynchronizedVideos();
       });
       video.addEventListener("timeupdate", () => syncVideosFrom(video));
       video.addEventListener("seeking", () => syncVideosFrom(video, { forceTime: true }));
@@ -1328,25 +1345,90 @@ function renderVideoStrip(stage) {
       ]);
     });
   }).filter(Boolean);
-  if (cards.length) stage.appendChild(el("div", { class: "video-strip" }, cards));
+  if (!cards.length) return;
+
+  const playbackButton = el("button", {
+    class: "mini-btn video-playback-btn",
+    text: state.videoMode === "chunk" ? "Play episode" : "Loop 16 steps",
+    title: state.videoMode === "chunk"
+      ? "Play every selected episode from its start"
+      : "Return to the selected 16-step action chunks",
+    onclick: () => setVideoPlaybackMode(state.videoMode === "chunk" ? "episode" : "chunk"),
+  });
+  stage.appendChild(el("div", { class: "video-playback-toolbar" }, [
+    el("span", {
+      class: "video-playback-status",
+      text: state.videoMode === "chunk" ? "Selected action chunk: 16-step loop" : "Full episode playback",
+    }),
+    playbackButton,
+  ]));
+  stage.appendChild(el("div", { class: "video-strip" }, cards));
 }
 
-function getSyncVideos(selectionKeyValue = null) {
-  const videos = [...document.querySelectorAll("video[data-sync-video='1']")];
-  if (!selectionKeyValue) return videos;
-  return videos.filter((video) => video.dataset.selectionKey === selectionKeyValue);
+function getSyncVideos() {
+  return [...document.querySelectorAll("video[data-sync-video='1']")];
+}
+
+function getVideoPlaybackStart(video) {
+  return state.videoMode === "episode" ? 0 : (numericValue(video.dataset.chunkStart) ?? 0);
+}
+
+function getVideoPlaybackEnd(video) {
+  if (state.videoMode === "episode") {
+    return Number.isFinite(video.duration) ? video.duration : Infinity;
+  }
+  return numericValue(video.dataset.chunkEnd) ?? getVideoPlaybackStart(video);
+}
+
+function maybeStartSynchronizedVideos() {
+  const videos = getSyncVideos();
+  if (!videos.length || videos.some((video) => video.dataset.ready !== "1")) return;
+  if (videos.every((video) => video.dataset.started === "1")) return;
+  state.syncingVideos = true;
+  try {
+    for (const video of videos) {
+      video.dataset.started = "1";
+      video.currentTime = getVideoPlaybackStart(video);
+      video.playbackRate = 1;
+    }
+  } finally {
+    state.syncingVideos = false;
+  }
+  requestAnimationFrame(() => {
+    for (const video of videos) {
+      const playPromise = video.play();
+      if (playPromise && typeof playPromise.catch === "function") playPromise.catch(() => {});
+    }
+  });
 }
 
 function syncVideosFrom(source, options = {}) {
-  if (state.syncingVideos) return;
+  if (state.syncingVideos || source.dataset.ready !== "1") return;
+  const videos = getSyncVideos().filter((video) => video.dataset.ready === "1");
+  if (!videos.length) return;
   const { syncPlayback = false, forceTime = false } = options;
   const threshold = forceTime ? 0.001 : 0.05;
+  const sourceStart = getVideoPlaybackStart(source);
+  let relativeTime = Math.max(0, source.currentTime - sourceStart);
+
+  if (state.videoMode === "chunk") {
+    const loopDuration = Math.max(0.001, Math.min(...videos.map((video) =>
+      Math.max(0.001, getVideoPlaybackEnd(video) - getVideoPlaybackStart(video))
+    )));
+    if (relativeTime >= loopDuration - 0.015 || source.currentTime < sourceStart - threshold) {
+      relativeTime = 0;
+    }
+  }
+
   state.syncingVideos = true;
   try {
-    for (const video of getSyncVideos(source.dataset.selectionKey)) {
-      if (video === source) continue;
-      if (Math.abs(video.currentTime - source.currentTime) > threshold) {
-        video.currentTime = source.currentTime;
+    for (const video of videos) {
+      const start = getVideoPlaybackStart(video);
+      const end = getVideoPlaybackEnd(video);
+      const lastTime = Number.isFinite(end) ? Math.max(start, end - 0.025) : start + relativeTime;
+      const targetTime = Math.min(start + relativeTime, lastTime);
+      if (Math.abs(video.currentTime - targetTime) > threshold) {
+        video.currentTime = targetTime;
       }
       if (video.playbackRate !== source.playbackRate) {
         video.playbackRate = source.playbackRate;
@@ -1362,7 +1444,7 @@ function syncVideosFrom(source, options = {}) {
   } finally {
     state.syncingVideos = false;
   }
-  syncSelectionToVideo(source);
+  updateActionChunkCursorFromVideo(source);
 }
 
 function renderCharts() {
@@ -1403,6 +1485,7 @@ function renderCharts() {
 }
 
 function selectPoint(runId, feature, point) {
+  state.videoMode = "chunk";
   const nextSelection = buildSelection(runId, point, feature);
   if (state.selectionMode === "single") {
     setSelectedPoints([nextSelection]);
@@ -1836,69 +1919,10 @@ function getSequencePathD(seqPoints) {
   return seqPoints.map((p, i) => `${i ? "L" : "M"}${p.x},${p.y}`).join(" ");
 }
 
-function getFeaturePointsForSelection(selection = state.selected) {
-  const chart = state.selectedCharts.find((item) =>
-    item.runId === selection?.runId && item.feature === selection?.feature
-  ) || state.selectedCharts[0];
-  if (!chart) return [];
-  const pointPayload = state.pointsByChart.get(chartKey(chart.runId, chart.feature));
-  if (!pointPayload) return [];
-  return pointPayload.points.map((row) => ({
-    x: row[0], y: row[1], seq: row[2], anchor: row[3], frame: row[4], progress: row[5], runId: chart.runId, feature: chart.feature,
-  }));
-}
-
-function nearestPointForFrame(selection, frame) {
-  let best = null;
-  let bestDist = Infinity;
-  for (const point of getFeaturePointsForSelection(selection)) {
-    if (point.seq !== selection.seq) continue;
-    const dist = Math.abs(point.frame - frame);
-    if (dist < bestDist) {
-      best = point;
-      bestDist = dist;
-    }
-  }
-  return best;
-}
-
 function getVideoSelectionIndex(video) {
   const index = Number(video.dataset.selectionIndex);
   if (Number.isInteger(index) && index >= 0 && index < state.selectedPoints.length) return index;
   return state.selectedPoints.findIndex((point) => selectionKey(point) === video.dataset.selectionKey);
-}
-
-function syncSelectionToVideo(video) {
-  const selectionIndex = getVideoSelectionIndex(video);
-  const selection = selectionIndex >= 0 ? state.selectedPoints[selectionIndex] : null;
-  if (!selection) return;
-  updateActionChunkCursorFromVideo(video);
-  const manifest = state.runManifestsById.get(selection.runId) || state.runManifest;
-  const fps = manifest.fps || 20;
-  const seq = getSequenceById(selection.runId, selection.seq);
-  const videoStartFrame = numericValue(video.dataset.startFrame) ?? numericValue(seq?.video_start_frame) ?? 0;
-  const frame = Math.round(video.currentTime * fps) + videoStartFrame;
-  const point = nearestPointForFrame(selection, frame);
-  if (!point || isSelected(point)) return;
-  const nextSelection = buildSelection(point.runId || selection.runId, point, point.feature || selection.feature);
-  if (state.selectionMode === "single") {
-    setSelectedPoints([nextSelection]);
-  } else {
-    const nextPoints = [...state.selectedPoints];
-    nextPoints[selectionIndex] = nextSelection;
-    setSelectedPoints(nextPoints.slice(-3));
-  }
-  updateSelectedMarker();
-  updateSelectionFrame();
-}
-
-function updateSelectedMarker() {
-  renderCharts();
-}
-
-function updateSelectionFrame() {
-  const frameNode = document.getElementById("selection-frame");
-  if (frameNode && state.selected) frameNode.textContent = String(state.selected.frame);
 }
 
 function updateActionChunkCursorFromVideo(video) {
@@ -1910,8 +1934,9 @@ function updateActionChunkCursorFromVideo(video) {
   if (Number(video.dataset.seq) !== Number(selection.seq)) return;
   const fps = numericValue(video.dataset.fps) || 20;
   const chunk = getActionChunk(selection);
-  const horizon = Math.max(1, chunk?.values?.length || 1);
-  const timestep = clamp(video.currentTime * fps, 0, Math.max(0, horizon - 1));
+  const horizon = Math.max(1, chunk?.values?.length || ACTION_CHUNK_STEPS);
+  const chunkStart = numericValue(video.dataset.chunkStart) ?? 0;
+  const timestep = clamp((video.currentTime - chunkStart) * fps, 0, Math.max(0, horizon - 1));
   updateActionChunkCursor(timestep);
 }
 

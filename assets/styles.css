@@ -582,6 +582,25 @@ body.resizing-panel {
   min-height: 280px;
 }
 
+.video-playback-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+
+.video-playback-status {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.video-playback-btn {
+  padding: 6px 10px;
+  font-weight: 700;
+}
+
 .video-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
