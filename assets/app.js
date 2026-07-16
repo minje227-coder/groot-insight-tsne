@@ -1340,6 +1340,7 @@ function renderVideoStrip(stage) {
       video.addEventListener("seeking", () => syncVideosFrom(video, { forceTime: true }));
       video.addEventListener("play", () => syncVideosFrom(video, { syncPlayback: true }));
       video.addEventListener("pause", () => syncVideosFrom(video, { syncPlayback: true }));
+      video.addEventListener("ended", () => handleEpisodePlaybackEnded(video));
       return el("div", { class: "video-card" }, [
         el("div", {
           class: "video-label",
@@ -1410,6 +1411,20 @@ function maybeStartSynchronizedVideos() {
   });
 }
 
+function handleEpisodePlaybackEnded(video) {
+  if (state.videoMode !== "episode") return;
+  video.dataset.episodeEnded = "1";
+  const videos = getSyncVideos();
+  const allEnded = videos.length > 0 && videos.every((item) =>
+    item.dataset.episodeEnded === "1"
+    || (Number.isFinite(item.duration) && item.currentTime >= item.duration - 0.06)
+  );
+  if (!allEnded) return;
+  setTimeout(() => {
+    if (state.videoMode === "episode") setVideoPlaybackMode("chunk");
+  }, 0);
+}
+
 function startChunkPlaybackClock(videos) {
   const fps = numericValue(videos[0]?.dataset.fps) || 20;
   const loopDuration = ACTION_CHUNK_STEPS / fps;
@@ -1453,6 +1468,7 @@ function syncVideosFrom(source, options = {}) {
   const videos = getSyncVideos().filter((video) => video.dataset.ready === "1");
   if (!videos.length) return;
   const { syncPlayback = false, forceTime = false } = options;
+  const shouldSyncPlayback = syncPlayback && !source.ended;
   const threshold = forceTime ? 0.001 : 0.05;
   const sourceStart = getVideoPlaybackStart(source);
   const relativeTime = Math.max(0, source.currentTime - sourceStart);
@@ -1470,7 +1486,7 @@ function syncVideosFrom(source, options = {}) {
       if (video.playbackRate !== source.playbackRate) {
         video.playbackRate = source.playbackRate;
       }
-      if (syncPlayback) {
+      if (shouldSyncPlayback) {
         if (source.paused && !video.paused) video.pause();
         if (!source.paused && video.paused) {
           const playPromise = video.play();
